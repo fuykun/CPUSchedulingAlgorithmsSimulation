@@ -1,2 +1,2 @@
 # CPUSchedulingAlgorithmsSimulation
-CPU SchedulingAlgorithms Simulation
+CPU Scheduling Algorithms Simulation
