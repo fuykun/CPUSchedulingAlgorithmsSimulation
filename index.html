@@ -1,0 +1,387 @@
+<html>
+
+<head>
+    <title>CPU Scheduling Algorithms Simulation</title>
+    <style>
+        #chartdiv {
+            width: 100%;
+            height: 500px;
+        }
+    </style>
+
+</head>
+
+<body>
+    <div class="container">
+        <hr>
+        <div class="row">
+            <div class="col-md-12 text-center" style="font-weight: bold; font-size:x-large">CPU Scheduling Algorithms Simulation
+                Simulasyonu</div>
+        </div>
+        <hr>
+        <div class="d-flex justify-content-center">
+            <div class="col-5 text-center">
+                <label style="font-weight: bold;">Select Algorithm</label>
+                <select class="form-control" id="algorithm" onchange="algorithmChanged(this)">
+                    <option value="fcfs">First-Come, First-Served Scheduling, "FCFS"</option>
+                    <option value="sjf">Shortest-Job-First Scheduling, "SJF"</option>
+                    <option value="ps">Priority Scheduling</option>
+                    <option value="rr">Round Robin Scheduling, "RR"</option>
+                </select>
+            </div>
+        </div>
+        <hr>
+        <div class="row">
+            <div id="chartdiv" style="height: 200px;"></div>
+        </div>
+        <hr>
+        <div class="d-flex justify-content-center text-center" id="timeQuantumArea" style="display:none !important">
+            <div class="form-group">
+                <label class="form-label" style="font-weight: bold;">Quantum Time</label>
+                <input class="form-control form-control-sm" type="number" id="timeQuantumInp" min="0">
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-8">
+                <table class="table table-bordered text-center table-sm mt-2">
+                    <thead>
+                        <tr>
+                            <th>Process</th>
+                            <th>Burst Time(s)</th>
+                            <th id="priorityTh" style="display:none">Priority</th>
+                        </tr>
+                    </thead>
+                    <tbody id="processTableBody"></tbody>
+                </table>
+            </div>
+            <div class="col-md-4">
+                <div class="row">
+                    <div class="form-group col-4">
+                        <label class="form-label" style="font-weight: bold;">Process</label>
+                        <span class="form-control form-control-sm" id="processNameSpan">P1</span>
+                    </div>
+                    <div class="form-group col-4">
+                        <label class="form-label" style="font-weight: bold;">Burst Time(s)</label>
+                        <input class="form-control form-control-sm" type="number" id="burstTimeInp" min="1">
+                    </div>
+                    <div class="form-group col-4" id="priorityArea" style="display:none">
+                        <label class="form-label" style="font-weight: bold;">Priority</label>
+                        <input class="form-control form-control-sm" type="number" id="priorityInp" min="1">
+                    </div>
+                    <button class="btn btn-warning col-8 mt-2" type="button" id="insertBtn"
+                        onclick="add(this)">Add</button>
+                </div>
+            </div>
+        </div>
+        <hr>
+        <div class="row pt-2">
+            <button type="button" class="btn btn-success" id="startBtn" onclick="start(this)">Start</button>
+            <button type="button" class="btn btn-danger mt-2 mb-2" id="stopBtn" onclick="stop(this)"
+                disabled>Stop</button>
+        </div>
+        <hr>
+    </div>
+</body>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-KyZXEAg3QhqLMpG8r+8fhAXLRk2vvoC2f3B09zVXn8CA5QIVfZOJ3BCsw2P0p/We" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-U1DAWAznBHeqEIlVSCgzq+c9gqGAJn5c/t99JyeKa9xxaYpSvHU5awsuZVVFIhvj"
+    crossorigin="anonymous"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"
+    integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<script src="https://cdn.amcharts.com/lib/4/core.js"></script>
+<script src="https://cdn.amcharts.com/lib/4/charts.js"></script>
+<script src="https://cdn.amcharts.com/lib/4/themes/animated.js"></script>
+
+
+<script>
+    class Process {
+        constructor(name, time, priority, color) {
+            this.name = name;
+            this.time = time;
+            this.priority = priority;
+            this.color = color;
+        }
+    }
+
+    var chart;
+    var valueAxis;
+    var interval;
+    var colorset = [
+        am4core.color("#6D81CA"),
+        am4core.color("#92A2D2"),
+        am4core.color("#E1D3C0"),
+        am4core.color("#D5AC79"),
+        am4core.color("#F9CC6C"),
+        am4core.color("#FD9A9C"),
+        am4core.color("#FEE4C6"),
+        am4core.color("#9DD067"),
+        am4core.color("#3D7F97"),
+        am4core.color("#46C5A7"),
+        am4core.color("#FFD001"),
+        am4core.color("#FFE753"),
+        am4core.color("#FFAD5E"),
+        am4core.color("#FF8416"),
+        am4core.color("#FF5C01")
+    ];
+
+    var chartData = { "year": "" };
+    var processes = [];
+
+    am4core.ready(function () {
+        chart = am4core.create("chartdiv", am4charts.XYChart);
+        chart.data = [chartData];
+
+        chart.legend = new am4charts.Legend();
+        chart.legend.position = "right";
+
+        var categoryAxis = chart.yAxes.push(new am4charts.CategoryAxis());
+        categoryAxis.dataFields.category = "year";
+        categoryAxis.renderer.grid.template.opacity = 0;
+
+        valueAxis = chart.xAxes.push(new am4charts.ValueAxis());
+        valueAxis.min = 0;
+        valueAxis.renderer.grid.template.opacity = 0;
+        valueAxis.renderer.ticks.template.strokeOpacity = 0.5;
+        valueAxis.renderer.ticks.template.stroke = am4core.color("#495C43");
+        valueAxis.renderer.ticks.template.length = 10;
+        valueAxis.renderer.line.strokeOpacity = 0.5;
+        valueAxis.renderer.baseGrid.disabled = true;
+        valueAxis.renderer.minGridDistance = 40;
+
+        $.map(processes, function (value, key) {
+            chartData[value.name] = value.time;
+            createSeries(chart, value.name, value.name);
+        });
+    });
+
+    function add(e) {
+        var processName = "P" + (processes.length + 1);
+        var burstTime = $("#burstTimeInp").val();
+
+        var currentAlgorithm = $("#algorithm").val();
+
+        if (currentAlgorithm == "fcfs") {
+            if (burstTime != "") {
+                processes.push(new Process(processName, parseInt(burstTime), null, colorset[processes.length + 1]));
+                if (chartData[processName] == null) {
+
+                    var totalTime = 0;
+                    processes.forEach(x => {
+                        totalTime += x.time;
+                    })
+                    valueAxis.max = totalTime;
+
+                    setProcessOnChart(processes);
+
+                    $("#processTableBody").append(`<tr><td>${processName}</td><td>${burstTime}</td></tr>`);
+                    $("#processNameSpan").text("P" + (processes.length + 1));
+
+                }
+            } else {
+                alert("Enter a Valid Value!")
+            }
+        }
+        else if (currentAlgorithm == "sjf") {
+            if (burstTime != "") {
+                processes.push(new Process(processName, parseInt(burstTime), null, colorset[processes.length + 1]));
+                if (chartData[processName] == null) {
+
+                    var totalTime = 0;
+                    processes.forEach(x => {
+                        totalTime += x.time;
+                    })
+                    valueAxis.max = totalTime;
+                    processes.sort(function (a, b) { return a.time - b.time }); //orderby(time)
+                    setProcessOnChart(processes);
+
+                    $("#processTableBody").append(`<tr><td>${processName}</td><td>${burstTime}</td></tr>`);
+                    $("#processNameSpan").text("P" + (processes.length + 1));
+
+                }
+            } else {
+                alert("Enter a Valid Value!")
+            }
+        } else if (currentAlgorithm == "ps") {
+            var priority = $("#priorityInp").val();
+
+            if (burstTime != "" && priority != "") {
+                processes.push(new Process(processName, parseInt(burstTime), parseInt(priority), colorset[processes.length + 1]));
+                if (chartData[processName] == null) {
+
+                    var totalTime = 0;
+                    processes.forEach(x => {
+                        totalTime += x.time;
+                    })
+                    valueAxis.max = totalTime;
+                    processes.sort(function (a, b) { return a.priority - b.priority });
+                    setProcessOnChart(processes);
+
+                    $("#processTableBody").append(`<tr><td>${processName}</td><td>${burstTime}</td><td>${priority}</td></tr>`);
+                    $("#processNameSpan").text("P" + (processes.length + 1));
+
+                }
+            } else {
+                alert("Enter a Valid Value!")
+            }
+        }
+        else if (currentAlgorithm == "rr") {
+            var quantumTime = $("#timeQuantumInp").val();
+            if (burstTime != "" && quantumTime != "") {
+                processes.push(new Process(processName, parseInt(burstTime), null, colorset[processes.length + 1]));
+                if (chartData[processName] == null) {
+                    var totalTime = 0;
+                    processes.forEach(x => {
+                        totalTime += x.time;
+                    })
+                    valueAxis.max = totalTime;
+                    setProcessOnChart(processes);
+
+                    $("#processTableBody").append(`<tr><td>${processName}</td><td>${burstTime}</td></tr>`);
+                    $("#processNameSpan").text("P" + (processes.length + 1));
+                }
+            } else {
+                alert("Enter a Valid Value!. (Please check Quantum Time and Burst Time.)")
+            }
+        }
+    }
+
+    function setProcessOnChart(processes) {
+        chart.series.clear();
+        $.map(processes, function (process, key) {
+            if (processes.time <= 0) {
+                processes = jQuery.grep(processes, function (process) {
+                    return value != process;
+                });
+            }
+            chartData[process.name] = process.time;
+            createSeries(chart, process.name, process.name, process.color);
+        });
+    }
+
+    function start(e) {
+        if (processes.length == 0) {
+            alert("You must add Process!");
+            return;
+        }
+
+        $(e).attr("disabled", "disabled");
+        $("#stopBtn").removeAttr("disabled");
+        $("#algorithm").attr("readonly", "readonly").attr("disabled", "disabled");
+
+        var currentAlgorithm = $("#algorithm").val();
+
+        if (currentAlgorithm != "rr") {
+            interval = setInterval(function () {
+                var isOkey = false;
+                $.map(processes, function (value, key) {
+                    if (!isOkey) {
+                        if (processes[key].time > 0) {
+                            var newValue = parseInt(value.time - 1);
+                            processes[key].time = newValue;
+                            chartData[value.name] = processes[key].time;
+                            isOkey = true;
+
+                            if (newValue == 0) {
+                                chartData[value.name] = null
+                            }
+                        }
+                    }
+                });
+
+                chart.data[0] = chartData;
+                chart.validateData();
+            }, 1000);
+        } else {
+            var timeQuantum = $("#timeQuantumInp").val();
+            if (timeQuantum != "") {
+                var timeQuantumCounter = 1;
+                interval = setInterval(function () {
+                    var isOkey = false;
+
+                    $.map(processes, function (value, key) {
+                        if (!isOkey) {
+                            if (processes[key].time > 0) {
+                                var newValue = parseInt(value.time - 1);
+                                processes[key].time = newValue;
+                                chartData[value.name] = processes[key].time;
+                                isOkey = true;
+
+                                if (newValue == 0) {
+                                    chartData[value.name] = null
+                                }
+
+                                if (timeQuantum == timeQuantumCounter) {
+                                    var currentProcess = processes[key];
+                                    processes = jQuery.grep(processes, function (value) {
+                                        return value != processes[key];
+                                    });
+
+                                    processes.push(currentProcess);
+                                    setProcessOnChart(processes);
+
+                                    timeQuantumCounter = 1;
+                                } else {
+                                    timeQuantumCounter++;
+                                }
+                            }
+                        }
+                    });
+
+                    chart.data[0] = chartData;
+                    chart.validateData();
+                }, 1000);
+            } else {
+                alert("Quantum Time girilmedi");
+            }
+
+        }
+    }
+
+    function stop(e) {
+        clearInterval(interval);
+        $("#startBtn").removeAttr("disabled");
+        $(e).attr("disabled", "disabled");
+        $("#algorithm").removeAttr("readonly");
+    }
+
+    function algorithmChanged(e) {
+        var selectedAlgorithm = e.value;
+        $(e).attr("disabled", "disabled");
+        processes = [];
+        setProcessOnChart(processes);
+        $("#priorityArea").hide();
+        $("#priorityTh").hide();
+        $("#timeQuantumArea").attr("style", "display:none !important");
+        $("#insertBtn").removeClass("col-12").addClass("col-8");
+
+        if (selectedAlgorithm == "ps") {
+            $("#priorityArea").show();
+            $("#priorityTh").show();
+            $("#insertBtn").removeClass("col-8").addClass("col-12");
+        } else if (selectedAlgorithm == "rr") {
+            $("#timeQuantumArea").show();
+        }
+    }
+
+    function createSeries(chart, field, name, color) {
+        var series = chart.series.push(new am4charts.ColumnSeries());
+        series.dataFields.valueX = field;
+        series.dataFields.categoryY = "year";
+        series.stacked = true;
+        series.name = name;
+        series.fill = color;
+
+        var labelBullet = series.bullets.push(new am4charts.LabelBullet());
+        labelBullet.locationX = 0.5;
+        labelBullet.label.text = "  [bold]{name}[/]\n{valueX}";
+        labelBullet.label.fill = am4core.color("#fff");
+    }
+
+</script>
+
+</html>
